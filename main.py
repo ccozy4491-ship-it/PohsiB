@@ -27,6 +27,9 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 # --- DISCORD BOT BEÁLLÍTÁSOK ---
 TOKEN = os.environ.get("DISCORD_TOKEN")
 
+# ⚠️ IDE ÍRD BE A SAJÁT DISCORD SZERVERED ID-JÁT! (Számként, idézőjelek nélkül)
+GUILD_ID = 1539231576242659418 
+
 EVENT_TYPES = {
     "Mino run": {"type": "Run", "limit": 4},
     "Féreg run": {"type": "Run", "limit": 4},
@@ -44,14 +47,17 @@ class EventBot(commands.Bot):
 
     async def setup_hook(self):
         try:
-            await self.tree.sync()
-            print("Parancsok sikeresen szinkronizálva!")
+            guild = discord.Object(id=GUILD_ID)
+            # Másoljuk a parancsokat a megadott szerverre az azonnali frissítéshez
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            print(f"Parancsok AZONNAL szinkronizálva a szerverre: {GUILD_ID}")
         except Exception as e:
             print(f"Szinkronizációs hiba: {e}")
 
 bot = EventBot()
 
-# --- PUBLIC ESEMÉNY PANEL (EZT LÁTJA MINDENKI A CSATORNÁBAN) ---
+# --- PUBLIC ESEMÉNY PANEL ---
 class PublicEventView(discord.ui.View):
     def __init__(self, creator: discord.Member, title: str, event_type: str, date_time: str):
         super().__init__(timeout=None)
@@ -118,7 +124,7 @@ class PublicEventView(discord.ui.View):
         await interaction.message.delete()
         await interaction.response.send_message(f"Az eseményt törölte: {interaction.user.mention}", ephemeral=True)
 
-# --- PRIVÁT BEÁLLÍTÓ PANEL (CSAK A LÉTREHOZÓ LÁTJA) ---
+# --- PRIVÁT BEÁLLÍTÓ PANEL ---
 class SetupModal(discord.ui.Modal, title="Esemény részletei"):
     event_title = discord.ui.TextInput(
         label="Esemény címe",
