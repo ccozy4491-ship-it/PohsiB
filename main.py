@@ -18,12 +18,11 @@ def run_dummy_server():
     server = HTTPServer(('0.0.0.0', port), DummyServer)
     server.serve_forever()
 
-# Elindítjuk a kis webszervert egy külön szálon
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# --- DISCORD BOT BEÁLLÍTÁSOK ---
-TOKEN = MTU1NjU2Mjc3MDQxNjExNTgwMw.GU1b8s.osu-7xUXFu3y1zK1dsmgFtR_-E7sEWMAJhGszU
-GUILD_ID = 1539231576242659418  # Cseréld ki a saját szervered ID-jára!
+# --- BIZTONSÁGOS BEÁLLÍTÁSOK ---
+# A tokent a Render környezeti változóiból (DISCORD_TOKEN) olvassa ki!
+TOKEN = os.environ.get("DISCORD_TOKEN")
 
 EVENT_CONFIG = {
     # Runok (Max 4 fő)
@@ -44,10 +43,9 @@ class EventBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        guild = discord.Object(id=GUILD_ID)
-        self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
-        print(f"Parancsok szinkronizálva a(z) {GUILD_ID} szerverre!")
+        # Globális szinkronizáció
+        await self.tree.sync()
+        print("Slash parancsok sikeresen szinkronizálva!")
 
 bot = EventBot()
 
@@ -143,4 +141,7 @@ async def esemeny(interaction: discord.Interaction):
 async def on_ready():
     print(f"Bejelentkezve mint: {bot.user.name}")
 
-bot.run(TOKEN)
+if not TOKEN:
+    print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva a Renderen!")
+else:
+    bot.run(TOKEN)
