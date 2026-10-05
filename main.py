@@ -5,7 +5,7 @@ from discord.ext import commands
 
 # --- DISCORD BOT BEÁLLÍTÁSOK ---
 TOKEN = os.environ.get("DISCORD_TOKEN")
-GUILD_ID = 123456789012345678  # ⚠️ IDE ÍRD BE A SAJÁT DISCORD SZERVERED ID-JÁT!
+GUILD_ID = 1539231576242659418  # A megadott Discord szerver azonosítója
 
 EVENT_TYPES = {
     "Mino run": {"type": "Run", "limit": 4},
@@ -158,6 +158,6 @@ async def on_ready():
     print(f"✅ Bot sikeresen bejelentkezett: {bot.user.name}")
 
 if not TOKEN:
-    print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva a Railway-en!")
+    print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva!")
 else:
     bot.run(TOKEN)
