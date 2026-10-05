@@ -1,32 +1,11 @@
 import os
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-# --- WEBSERVER A RENDER / RAILWAY SZÁMÁRA ---
-class DummyServer(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html; charset=utf-8')
-        self.end_headers()
-        self.wfile.write(b"A Discord Bot elindult es fut!")
-
-    def log_message(self, format, *args):
-        return
-
-def run_dummy_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), DummyServer)
-    print(f"Webserver elinditva a 0.0.0.0:{port} porton")
-    server.serve_forever()
-
-threading.Thread(target=run_dummy_server, daemon=True).start()
-
 # --- DISCORD BOT BEÁLLÍTÁSOK ---
 TOKEN = os.environ.get("DISCORD_TOKEN")
-GUILD_ID = 1539231576242659418  # ⚠️ IDE ÍRD BE A SAJÁT SZERVERED ID-JÁT!
+GUILD_ID = 123456789012345678  # ⚠️ IDE ÍRD BE A SAJÁT DISCORD SZERVERED ID-JÁT!
 
 EVENT_TYPES = {
     "Mino run": {"type": "Run", "limit": 4},
@@ -38,27 +17,9 @@ EVENT_TYPES = {
     "Klán Zászló": {"type": "Klán Zászló", "limit": None}
 }
 
-class EventBot(commands.Bot):
-    def __init__(self):
-        intents = discord.Intents.default()
-        # Ha a parancsalapú szinkronizálást használjuk, szükség van a üzenetek olvasására
-        intents.message_content = True 
-        super().__init__(command_prefix="!", intents=intents)
-
-    async def setup_hook(self):
-        # Eltávolítottuk az automatikus tree.sync()-et a 429-es hiba elkerülése érdekében!
-        print("Bot elindult. A szinkronizáláshoz használd a '!sync' parancsot a Discordban.")
-
-bot = EventBot()
-
-# --- MANUÁLIS SZINKRONIZÁCIÓS PARANCS (!sync) ---
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def sync(ctx):
-    guild = discord.Object(id=GUILD_ID)
-    bot.tree.copy_global_to(guild=guild)
-    synced = await bot.tree.sync(guild=guild)
-    await ctx.send(f"✅ {len(synced)} parancs sikeresen szinkronizálva a szerverre!")
+intents = discord.Intents.default()
+intents.message_content = True  # A !sync parancshoz szükséges
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- PUBLIC ESEMÉNY PANEL ---
 class PublicEventView(discord.ui.View):
@@ -183,11 +144,20 @@ async def esemeny(interaction: discord.Interaction):
     view = PrivateSetupView()
     await interaction.response.send_message("🛠️ **Esemény Létrehozása**\nVálaszd ki az esemény típusát a folytatáshoz:", view=view, ephemeral=True)
 
+# --- MANUÁLIS SZINKRONIZÁLÁS (!sync) ---
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def sync(ctx):
+    guild = discord.Object(id=GUILD_ID)
+    bot.tree.copy_global_to(guild=guild)
+    synced = await bot.tree.sync(guild=guild)
+    await ctx.send(f"✅ {len(synced)} parancs sikeresen szinkronizálva a szerverre!")
+
 @bot.event
 async def on_ready():
-    print(f"Bejelentkezve mint: {bot.user.name}")
+    print(f"✅ Bot sikeresen bejelentkezett: {bot.user.name}")
 
 if not TOKEN:
-    print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva!")
+    print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva a Railway-en!")
 else:
     bot.run(TOKEN)
