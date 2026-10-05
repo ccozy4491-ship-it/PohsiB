@@ -29,7 +29,7 @@ EVENT_CONFIG = {
     "Menedék expo": {"type": "Expedíció", "limit": 5},
     "Ork Expo": {"type": "Expedíció", "limit": 5},
     "Sivatag Expo": {"type": "Expedíció", "limit": 5},
-    "Klán Zászló": {"type": "Klán Zászló", "limit": None}
+    "Klán Zállítás": {"type": "Klán Zászló", "limit": None}
 }
 
 class EventBot(commands.Bot):
@@ -52,7 +52,7 @@ class EventView(discord.ui.View):
         limit_text = "Nincs korlát" if self.config["limit"] is None else f"{len(self.participants)}/{self.config['limit']}"
         
         embed = discord.Embed(
-            title=f"⚔️️ Esemény: {self.event_name}",
+            title=f"⚔ Esemény: {self.event_name}",
             color=discord.Color.blue()
         )
         embed.add_field(name="Szervező", value=self.creator.mention, inline=True)
