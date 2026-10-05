@@ -18,7 +18,7 @@ EVENT_TYPES = {
 }
 
 intents = discord.Intents.default()
-intents.message_content = True  # A !sync parancshoz szükséges
+intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- PUBLIC ESEMÉNY PANEL ---
@@ -144,20 +144,19 @@ async def esemeny(interaction: discord.Interaction):
     view = PrivateSetupView()
     await interaction.response.send_message("🛠️ **Esemény Létrehozása**\nVálaszd ki az esemény típusát a folytatáshoz:", view=view, ephemeral=True)
 
-# --- MANUÁLIS SZINKRONIZÁLÁS (!sync) ---
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def sync(ctx):
-    guild = discord.Object(id=GUILD_ID)
-    bot.tree.copy_global_to(guild=guild)
-    synced = await bot.tree.sync(guild=guild)
-    await ctx.send(f"✅ {len(synced)} parancs sikeresen szinkronizálva a szerverre!")
-
+# --- AUTOMATIKUS SZINKRONIZÁLÁS INDÍTÁSKOR ---
 @bot.event
 async def on_ready():
     print(f"✅ Bot sikeresen bejelentkezett: {bot.user.name}")
+    try:
+        guild = discord.Object(id=GUILD_ID)
+        bot.tree.copy_global_to(guild=guild)
+        synced = await bot.tree.sync(guild=guild)
+        print(f"✅ Auto-sync: {len(synced)} parancs szinkronizálva a szerverre ({GUILD_ID})!")
+    except Exception as e:
+        print(f"❌ Hiba az auto-sync során: {e}")
 
 if not TOKEN:
-    print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva!")
+    print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva a Railway-en!")
 else:
     bot.run(TOKEN)
