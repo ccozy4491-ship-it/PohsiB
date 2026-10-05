@@ -5,21 +5,29 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-# --- INGYENES RENDER WEBSERVER TRÜKK ---
+# --- WEBSERVER A RENDER SZÁMÁRA ---
 class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
+        self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write(b"Bot is online!")
+        self.wfile.write(b"A Discord Bot elindult es fut!")
+
+    def log_message(self, format, *args):
+        # Kiszuri a felesleges HTTP logokat a konzolbol
+        return
 
 def run_dummy_server():
-    port = int(os.environ.get("PORT", 8080))
+    # A Render automatikusan atadja a PORT kornyezeti valtozot (altalaban 10000)
+    port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), DummyServer)
+    print(f"Webserver elinditva a 0.0.0.0:{port} porton")
     server.serve_forever()
 
+# Azonnal elinditjuk a webservert a hatterszalban
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# --- BIZTONSÁGOS BEÁLLÍTÁSOK ---
+# --- DISCORD BOT BEÁLLÍTÁSOK ---
 TOKEN = os.environ.get("DISCORD_TOKEN")
 
 EVENT_CONFIG = {
