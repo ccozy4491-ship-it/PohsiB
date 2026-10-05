@@ -1,12 +1,30 @@
+import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-# --- BEÁLLÍTÁSOK ---
-TOKEN = MTU1NjU2Mjc3MDQxNjExNTgwMw.GB6M6G.IKC-x5QHFCXc_ZpBgGpD_Ie76Rx5gn2C961LDk
-GUILD_ID = 1539231576242659418  # cseréld ki a szervered ID-jára!
+# --- INGYENES RENDER WEBSERVER TRÜKK ---
+# A Render ingyenesen csak Web Service-t enged. Ez a mini szerver jelzi a Rendernek, hogy él a bot.
+class DummyServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is online!")
 
-# Esemény típusok beállításai és létszámstátuszai (None = nincs korlát)
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(('0.0.0.0', port), DummyServer)
+    server.serve_forever()
+
+# Elindítjuk a kis webszervert egy külön szálon
+threading.Thread(target=run_dummy_server, daemon=True).start()
+
+# --- DISCORD BOT BEÁLLÍTÁSOK ---
+TOKEN = MTU1NjU2Mjc3MDQxNjExNTgwMw.GU1b8s.osu-7xUXFu3y1zK1dsmgFtR_-E7sEWMAJhGszU
+GUILD_ID = 1539231576242659418  # Cseréld ki a saját szervered ID-jára!
+
 EVENT_CONFIG = {
     # Runok (Max 4 fő)
     "Mino run": {"type": "Run", "limit": 4},
@@ -16,7 +34,7 @@ EVENT_CONFIG = {
     "Menedék expo": {"type": "Expedíció", "limit": 5},
     "Ork Expo": {"type": "Expedíció", "limit": 5},
     "Sivatag Expo": {"type": "Expedíció", "limit": 5},
-    # Klán Zászló (Korlátlan)
+    # Klán Zászló (Nincs korlát)
     "Klán Zászló": {"type": "Klán Zászló", "limit": None}
 }
 
@@ -26,7 +44,6 @@ class EventBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Parancsok szinkronizálása csak a megadott szerverre
         guild = discord.Object(id=GUILD_ID)
         self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
@@ -34,16 +51,13 @@ class EventBot(commands.Bot):
 
 bot = EventBot()
 
-# --- NÉZET ÉS INTERAKTÍV ELEMEK ---
 class EventView(discord.ui.View):
     def __init__(self, creator: discord.Member, event_name: str):
         super().__init__(timeout=None)
         self.creator = creator
         self.event_name = event_name
-        self.participants = [creator]  # A létrehozó automatikusan feliratkozik
+        self.participants = [creator]
         self.config = EVENT_CONFIG[event_name]
-
-        # Választómenü hozzáadása
         self.add_item(EventSelect())
 
     def build_embed(self) -> discord.Embed:
@@ -101,38 +115,29 @@ class EventView(discord.ui.View):
         await interaction.message.delete()
         await interaction.response.send_message(f"Az eseményt törölte: {interaction.user.mention}", ephemeral=True)
 
-
 class EventSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            # Runok
             discord.SelectOption(label="Mino run", description="Run (Max 4 fő)", emoji="🐂"),
             discord.SelectOption(label="Féreg run", description="Run (Max 4 fő)", emoji="🐛"),
             discord.SelectOption(label="Kenta run", description="Run (Max 4 fő)", emoji="🏹"),
-            # Expedíciók
             discord.SelectOption(label="Menedék expo", description="Expedíció (Max 5 fő)", emoji="🏕️"),
             discord.SelectOption(label="Ork Expo", description="Expedíció (Max 5 fő)", emoji="👹"),
             discord.SelectOption(label="Sivatag Expo", description="Expedíció (Max 5 fő)", emoji="🏜️"),
-            # Klán Zászló
             discord.SelectOption(label="Klán Zászló", description="Klán Zászló (Nincs limit)", emoji="🚩"),
         ]
         super().__init__(placeholder="Válassz eseményt...", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
         selected_event = self.values[0]
-        # Új nézet létrehozása a kiválasztott eseménnyel
         new_view = EventView(creator=interaction.user, event_name=selected_event)
         await interaction.response.edit_message(embed=new_view.build_embed(), view=new_view)
 
-
-# --- PARANCSOK ---
 @bot.tree.command(name="esemeny", description="Esemény panel megnyitása")
 async def esemeny(interaction: discord.Interaction):
-    # Alapértelmezett kezdő esemény: Mino run
     default_event = "Mino run"
     view = EventView(creator=interaction.user, event_name=default_event)
     await interaction.response.send_message(embed=view.build_embed(), view=view)
-
 
 @bot.event
 async def on_ready():
