@@ -5,7 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-# --- WEBSERVER A RENDER SZÁMÁRA ---
+# --- WEBSERVER A RENDER / RAILWAY SZÁMÁRA ---
 class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -27,14 +27,14 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 # --- DISCORD BOT BEÁLLÍTÁSOK ---
 TOKEN = os.environ.get("DISCORD_TOKEN")
 
-EVENT_CONFIG = {
+EVENT_TYPES = {
     "Mino run": {"type": "Run", "limit": 4},
     "Féreg run": {"type": "Run", "limit": 4},
     "Kenta run": {"type": "Run", "limit": 4},
     "Menedék expo": {"type": "Expedíció", "limit": 5},
     "Ork Expo": {"type": "Expedíció", "limit": 5},
     "Sivatag Expo": {"type": "Expedíció", "limit": 5},
-    "Klán Zállítás": {"type": "Klán Zászló", "limit": None}
+    "Klán Zászló": {"type": "Klán Zászló", "limit": None}
 }
 
 class EventBot(commands.Bot):
@@ -42,7 +42,6 @@ class EventBot(commands.Bot):
         intents = discord.Intents.default()
         super().__init__(command_prefix="!", intents=intents)
 
-    # A szinkronizálás mostantól NEM az on_ready-ben fut, így elkerüljük a 429-es hibát!
     async def setup_hook(self):
         try:
             await self.tree.sync()
@@ -52,24 +51,27 @@ class EventBot(commands.Bot):
 
 bot = EventBot()
 
-class EventView(discord.ui.View):
-    def __init__(self, creator: discord.Member, event_name: str):
+# --- PUBLIC ESEMÉNY PANEL (EZT LÁTJA MINDENKI A CSATORNÁBAN) ---
+class PublicEventView(discord.ui.View):
+    def __init__(self, creator: discord.Member, title: str, event_type: str, date_time: str):
         super().__init__(timeout=None)
         self.creator = creator
-        self.event_name = event_name
+        self.title = title
+        self.event_type = event_type
+        self.date_time = date_time
         self.participants = [creator]
-        self.config = EVENT_CONFIG[event_name]
-        self.add_item(EventSelect())
+        self.config = EVENT_TYPES[event_type]
 
     def build_embed(self) -> discord.Embed:
         limit_text = "Nincs korlát" if self.config["limit"] is None else f"{len(self.participants)}/{self.config['limit']}"
         
         embed = discord.Embed(
-            title=f"⚔ Esemény: {self.event_name}",
+            title=f"⚔ {self.title}",
+            description=f"**Típus:** {self.event_type} ({self.config['type']})",
             color=discord.Color.blue()
         )
         embed.add_field(name="Szervező", value=self.creator.mention, inline=True)
-        embed.add_field(name="Kategória", value=self.config["type"], inline=True)
+        embed.add_field(name="Időpont", value=f"⏰ {self.date_time}", inline=True)
         embed.add_field(name="Létszám", value=limit_text, inline=True)
 
         if self.participants:
@@ -78,7 +80,7 @@ class EventView(discord.ui.View):
             lista = "Még nincs jelentkező."
 
         embed.add_field(name="Jelentkezők", value=lista, inline=False)
-        embed.set_footer(text="Válassz új eseményt a menüből, vagy használd a gombokat!")
+        embed.set_footer(text="A gombok segítségével csatlakozhatsz vagy leiratkozhatsz.")
         return embed
 
     @discord.ui.button(label="Jelentkezés", style=discord.ButtonStyle.success, custom_id="join_btn")
@@ -116,7 +118,36 @@ class EventView(discord.ui.View):
         await interaction.message.delete()
         await interaction.response.send_message(f"Az eseményt törölte: {interaction.user.mention}", ephemeral=True)
 
-class EventSelect(discord.ui.Select):
+# --- PRIVÁT BEÁLLÍTÓ PANEL (CSAK A LÉTREHOZÓ LÁTJA) ---
+class SetupModal(discord.ui.Modal, title="Esemény részletei"):
+    event_title = discord.ui.TextInput(
+        label="Esemény címe",
+        placeholder="pl. Esti Klán Run",
+        max_length=100,
+        required=True
+    )
+    event_time = discord.ui.TextInput(
+        label="Időpont",
+        placeholder="pl. Ma 20:00 vagy 2026.10.05 20:00",
+        max_length=50,
+        required=True
+    )
+
+    def __init__(self, selected_type: str):
+        super().__init__()
+        self.selected_type = selected_type
+
+    async def on_submit(self, interaction: discord.Interaction):
+        public_view = PublicEventView(
+            creator=interaction.user,
+            title=self.event_title.value,
+            event_type=self.selected_type,
+            date_time=self.event_time.value
+        )
+        await interaction.channel.send(embed=public_view.build_embed(), view=public_view)
+        await interaction.response.send_message("✅ Esemény sikeresen létrehozva és közzétéve!", ephemeral=True)
+
+class EventTypeSelect(discord.ui.Select):
     def __init__(self):
         options = [
             discord.SelectOption(label="Mino run", description="Run (Max 4 fő)", emoji="🐂"),
@@ -125,20 +156,23 @@ class EventSelect(discord.ui.Select):
             discord.SelectOption(label="Menedék expo", description="Expedíció (Max 5 fő)", emoji="🏕️"),
             discord.SelectOption(label="Ork Expo", description="Expedíció (Max 5 fő)", emoji="👹"),
             discord.SelectOption(label="Sivatag Expo", description="Expedíció (Max 5 fő)", emoji="🏜️"),
-            discord.SelectOption(label="Klán Zállítás", description="Klán Zászló (Nincs limit)", emoji="🚩"),
+            discord.SelectOption(label="Klán Zászló", description="Klán Zászló (Nincs limit)", emoji="🚩"),
         ]
-        super().__init__(placeholder="Válassz eseményt...", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="Válassz esemény típust...", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        selected_event = self.values[0]
-        new_view = EventView(creator=interaction.user, event_name=selected_event)
-        await interaction.response.edit_message(embed=new_view.build_embed(), view=new_view)
+        modal = SetupModal(selected_type=self.values[0])
+        await interaction.response.send_modal(modal)
 
-@bot.tree.command(name="esemeny", description="Esemény panel megnyitása")
+class PrivateSetupView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+        self.add_item(EventTypeSelect())
+
+@bot.tree.command(name="esemeny", description="Új esemény panel létrehozása")
 async def esemeny(interaction: discord.Interaction):
-    default_event = "Mino run"
-    view = EventView(creator=interaction.user, event_name=default_event)
-    await interaction.response.send_message(embed=view.build_embed(), view=view)
+    view = PrivateSetupView()
+    await interaction.response.send_message("🛠️ **Esemény Létrehozása**\nVálaszd ki az esemény típusát a folytatáshoz:", view=view, ephemeral=True)
 
 @bot.event
 async def on_ready():
