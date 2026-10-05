@@ -14,17 +14,14 @@ class DummyServer(BaseHTTPRequestHandler):
         self.wfile.write(b"A Discord Bot elindult es fut!")
 
     def log_message(self, format, *args):
-        # Kiszuri a felesleges HTTP logokat a konzolbol
         return
 
 def run_dummy_server():
-    # A Render automatikusan atadja a PORT kornyezeti valtozot (altalaban 10000)
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), DummyServer)
     print(f"Webserver elinditva a 0.0.0.0:{port} porton")
     server.serve_forever()
 
-# Azonnal elinditjuk a webservert a hatterszalban
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --- DISCORD BOT BEÁLLÍTÁSOK ---
@@ -44,6 +41,14 @@ class EventBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         super().__init__(command_prefix="!", intents=intents)
+
+    # A szinkronizálás mostantól NEM az on_ready-ben fut, így elkerüljük a 429-es hibát!
+    async def setup_hook(self):
+        try:
+            await self.tree.sync()
+            print("Parancsok sikeresen szinkronizálva!")
+        except Exception as e:
+            print(f"Szinkronizációs hiba: {e}")
 
 bot = EventBot()
 
@@ -138,11 +143,6 @@ async def esemeny(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     print(f"Bejelentkezve mint: {bot.user.name}")
-    try:
-        await bot.tree.sync()
-        print("Parancsok szinkronizálva!")
-    except Exception as e:
-        print(f"Szinkronizációs hiba: {e}")
 
 if not TOKEN:
     print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva!")
