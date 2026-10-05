@@ -6,7 +6,6 @@ from discord import app_commands
 from discord.ext import commands
 
 # --- INGYENES RENDER WEBSERVER TRÜKK ---
-# A Render ingyenesen csak Web Service-t enged. Ez a mini szerver jelzi a Rendernek, hogy él a bot.
 class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -21,19 +20,15 @@ def run_dummy_server():
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --- BIZTONSÁGOS BEÁLLÍTÁSOK ---
-# A tokent a Render környezeti változóiból (DISCORD_TOKEN) olvassa ki!
 TOKEN = os.environ.get("DISCORD_TOKEN")
 
 EVENT_CONFIG = {
-    # Runok (Max 4 fő)
     "Mino run": {"type": "Run", "limit": 4},
     "Féreg run": {"type": "Run", "limit": 4},
     "Kenta run": {"type": "Run", "limit": 4},
-    # Expedíciók (Max 5 fő)
     "Menedék expo": {"type": "Expedíció", "limit": 5},
     "Ork Expo": {"type": "Expedíció", "limit": 5},
     "Sivatag Expo": {"type": "Expedíció", "limit": 5},
-    # Klán Zászló (Nincs korlát)
     "Klán Zászló": {"type": "Klán Zászló", "limit": None}
 }
 
@@ -41,11 +36,6 @@ class EventBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         super().__init__(command_prefix="!", intents=intents)
-
-    async def setup_hook(self):
-        # Globális szinkronizáció
-        await self.tree.sync()
-        print("Slash parancsok sikeresen szinkronizálva!")
 
 bot = EventBot()
 
@@ -62,7 +52,7 @@ class EventView(discord.ui.View):
         limit_text = "Nincs korlát" if self.config["limit"] is None else f"{len(self.participants)}/{self.config['limit']}"
         
         embed = discord.Embed(
-            title=f"⚔️ Esemény: {self.event_name}",
+            title=f"⚔️️ Esemény: {self.event_name}",
             color=discord.Color.blue()
         )
         embed.add_field(name="Szervező", value=self.creator.mention, inline=True)
@@ -122,7 +112,7 @@ class EventSelect(discord.ui.Select):
             discord.SelectOption(label="Menedék expo", description="Expedíció (Max 5 fő)", emoji="🏕️"),
             discord.SelectOption(label="Ork Expo", description="Expedíció (Max 5 fő)", emoji="👹"),
             discord.SelectOption(label="Sivatag Expo", description="Expedíció (Max 5 fő)", emoji="🏜️"),
-            discord.SelectOption(label="Klán Zászló", description="Klán Zászló (Nincs limit)", emoji="🚩"),
+            discord.SelectOption(label="Klán Zállítás", description="Klán Zászló (Nincs limit)", emoji="🚩"),
         ]
         super().__init__(placeholder="Válassz eseményt...", min_values=1, max_values=1, options=options)
 
@@ -140,8 +130,13 @@ async def esemeny(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     print(f"Bejelentkezve mint: {bot.user.name}")
+    try:
+        await bot.tree.sync()
+        print("Parancsok szinkronizálva!")
+    except Exception as e:
+        print(f"Szinkronizációs hiba: {e}")
 
 if not TOKEN:
-    print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva a Renderen!")
+    print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva!")
 else:
     bot.run(TOKEN)
