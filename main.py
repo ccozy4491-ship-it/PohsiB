@@ -1,4 +1,5 @@
 import os
+import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -17,8 +18,8 @@ EVENT_TYPES = {
     "Klán Zászló": {"type": "Klán Zászló", "limit": None}
 }
 
+# Alapértelmezett intents - NO message_content a rate limit megelőzésére!
 intents = discord.Intents.default()
-intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- PUBLIC ESEMÉNY PANEL ---
@@ -61,7 +62,7 @@ class PublicEventView(discord.ui.View):
 
         limit = self.config["limit"]
         if limit is not None and len(self.participants) >= limit:
-            await interaction.response.send_message("Sajnos ez az esemény már betelt!", ephemeral=True)
+            await interaction.response.send_message("Sajnos ez an esemény már betelt!", ephemeral=True)
             return
 
         self.participants.append(interaction.user)
@@ -144,19 +145,38 @@ async def esemeny(interaction: discord.Interaction):
     view = PrivateSetupView()
     await interaction.response.send_message("🛠️ **Esemény Létrehozása**\nVálaszd ki az esemény típusát a folytatáshoz:", view=view, ephemeral=True)
 
-# --- AUTOMATIKUS SZINKRONIZÁLÁS INDÍTÁSKOR ---
+# --- BEJELENTKEZÉS ÉS PARANCS SZINKRON ---
 @bot.event
 async def on_ready():
-    print(f"✅ Bot sikeresen bejelentkezett: {bot.user.name}")
+    print(f"✅ Bot csatlakozva: {bot.user.name}")
     try:
         guild = discord.Object(id=GUILD_ID)
         bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
-        print(f"✅ Auto-sync: {len(synced)} parancs szinkronizálva a szerverre ({GUILD_ID})!")
+        print(f"✅ {len(synced)} Slash parancs szinkronizálva ({GUILD_ID})!")
     except Exception as e:
-        print(f"❌ Hiba az auto-sync során: {e}")
+        print(f"⚠️ Szinkronizációs figyelmeztetés: {e}")
 
-if not TOKEN:
-    print("HIBA: A DISCORD_TOKEN környezeti változó nincs beállítva a Railway-en!")
-else:
-    bot.run(TOKEN)
+# --- ROBUSZTUS INDÍTÓ FÜGGVÉNY RATE LIMIT ELLEN ---
+async def start_bot():
+    retry_delay = 15  # Másodperc várakozás 429-es hiba esetén
+    while True:
+        try:
+            await bot.start(TOKEN)
+            break
+        except discord.errors.HTTPException as e:
+            if e.status == 429:
+                print(f"⚠️ 429 Too Many Requests (Rate limit). Várakozás {retry_delay} másodpercig az újracsatlakozás előtt...")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 120)  # Növeljük a várakozási időt
+            else:
+                raise e
+
+if __name__ == "__main__":
+    if not TOKEN:
+        print("HIBA: A DISCORD_TOKEN környezeti változó hiányzik!")
+    else:
+        try:
+            asyncio.run(start_bot())
+        except KeyboardInterrupt:
+            print("Bot leállítva.")
