@@ -26,9 +26,7 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --- DISCORD BOT BEÁLLÍTÁSOK ---
 TOKEN = os.environ.get("DISCORD_TOKEN")
-
-# ⚠️ IDE ÍRD BE A SAJÁT DISCORD SZERVERED ID-JÁT! (Számként, idézőjelek nélkül)
-GUILD_ID = 1539231576242659418 
+GUILD_ID = 1539231576242659418  # ⚠️ IDE ÍRD BE A SAJÁT SZERVERED ID-JÁT!
 
 EVENT_TYPES = {
     "Mino run": {"type": "Run", "limit": 4},
@@ -43,19 +41,24 @@ EVENT_TYPES = {
 class EventBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
+        # Ha a parancsalapú szinkronizálást használjuk, szükség van a üzenetek olvasására
+        intents.message_content = True 
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        try:
-            guild = discord.Object(id=GUILD_ID)
-            # Másoljuk a parancsokat a megadott szerverre az azonnali frissítéshez
-            self.tree.copy_global_to(guild=guild)
-            await self.tree.sync(guild=guild)
-            print(f"Parancsok AZONNAL szinkronizálva a szerverre: {GUILD_ID}")
-        except Exception as e:
-            print(f"Szinkronizációs hiba: {e}")
+        # Eltávolítottuk az automatikus tree.sync()-et a 429-es hiba elkerülése érdekében!
+        print("Bot elindult. A szinkronizáláshoz használd a '!sync' parancsot a Discordban.")
 
 bot = EventBot()
+
+# --- MANUÁLIS SZINKRONIZÁCIÓS PARANCS (!sync) ---
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def sync(ctx):
+    guild = discord.Object(id=GUILD_ID)
+    bot.tree.copy_global_to(guild=guild)
+    synced = await bot.tree.sync(guild=guild)
+    await ctx.send(f"✅ {len(synced)} parancs sikeresen szinkronizálva a szerverre!")
 
 # --- PUBLIC ESEMÉNY PANEL ---
 class PublicEventView(discord.ui.View):
